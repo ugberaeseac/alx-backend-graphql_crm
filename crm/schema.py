@@ -51,16 +51,17 @@ class Query(graphene.ObjectType):
 
 
 class CreateCustomer(graphene.Mutation):
-    input = graphene.List(CustomerInputType, required=True)
+    class Arguments:
+        input = CustomerInputType(required=True)
     
     customer = graphene.Field(CustomerType)
     success = graphene.String()
 
     @classmethod
-    def mutate(cls, root, info, name, email, phone):
+    def mutate(cls, root, info, input):
         name = input.name
         email = input.email
-        phone = input.email
+        phone = input.phone
 
         if Customer.objects.filter(email=email).exists():
             raise GraphQLError('The email is already been used by another customer')
