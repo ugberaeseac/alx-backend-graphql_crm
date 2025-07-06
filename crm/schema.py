@@ -2,6 +2,7 @@ import graphene
 from graphene_django import DjangoObjectType
 from .models import Customer, Product, Order
 from graphql import GraphQLError
+from decimal import Decimal
 
 class CustomerType(DjangoObjectType):
     class Meta:
@@ -16,30 +17,50 @@ class ProductType(DjangoObjectType):
 
 
 class OrderType(DjangoObjectType):
+    total_amount = graphene.Decimal()
+
     class Meta:
         model = Order
-        fields = ('order_id', 'customer_id', 'product_id')
+        fields = ('order_id', 'customer_id', 'product_ids', 'total_amount')
+
+    def resolve_total_amount(parent, info):
+        return parent.total_amount
+
+
+class CustomerInputType(graphene.InputObjectType):
+    name = graphene.String(required=True)
+    email = graphene.String(required=True)
+    phone = graphene.String()
+
 
 
 class Query(graphene.ObjectType):
     all_customers = graphene.List(CustomerType)
+    all_products = graphene.List(ProductType)
+    all_orders = graphene.List(OrderType)
 
     def resolve_all_customers(root, info):
         return Customer.objects.all()
 
+    def resolve_all_products(root, info):
+        return Product.objects.all()
+
+    def resolve_all_Orders(root, info):
+        return Order.objects.all()
+
 
 
 class CreateCustomer(graphene.Mutation):
-    class Arguments:
-        name = graphene.String(required=True)
-        email = graphene.String(required=True)
-        phone = graphene.String()
+    input = graphene.List(CustomerInputType, required=True)
     
     customer = graphene.Field(CustomerType)
     success = graphene.String()
 
     @classmethod
     def mutate(cls, root, info, name, email, phone):
+        name = input.name
+        email = input.email
+        phone = input.email
 
         if Customer.objects.filter(email=email).exists():
             raise GraphQLError('The email is already been used by another customer')
@@ -56,18 +77,72 @@ class CreateCustomer(graphene.Mutation):
 
 
 class BulkCreateCustomer():
+#    class Arguments:
+#        customer_list = graphene.List(graphene.dict(required=True)
     pass
 
-class CreateProduct():
-    pass
 
-class CreateOrder():
-    pass
+
+class CreateProduct(graphene.Mutation):
+    class Arguments:
+        name = graphene.String(required=True)
+        price = graphene.Float(required=True)
+        stock = graphene.Int(required=True, default_value=0)
+
+    product = graphene.Field(ProductType)
+    success = graphene.String()
+
+    @classmethod
+    def mutate(cls, root, info, name, price, stock):
+        if stock is not None and stock < 0:
+            raise GraphQLError('The stock can not be a negative number')
+
+        if price is None or price < 0:
+            raise GraphQLError('Price must be a positive value')
+
+        product = Product(
+                name = name,
+                price = Decimal(price),
+                stock = stock
+                )
+        product.save()
+        return CreateProduct(product=product, success='Product created successfully')
+
+
+class CreateOrder(graphene.Mutation):
+    class Arguments:
+        customer_id = graphene.ID(required=True)
+        product_ids = graphene.List(graphene.ID, required=True)
+
+    order = graphene.Field(OrderType)
+    success = graphene.String()
+
+    @classmethod
+    def mutate(cls, root, info, customer_id, product_ids):
+        customer = Customer.objects.get(customer_id=customer_id)
+        if not customer:
+            raise GraphQLError('Invalid customer ID')
+
+        products = Product.objects.filter(product_id__in=products_ids)
+        for product in products:
+            valid_ids = set(str(product.product_ids))
+
+        if set(product_ids) != valid_ids:
+            raise GraphQLError('One or more product IDs are invalid')
+
+        order = Order(
+                customer_id = customer,
+                product_ids = list(product_ids)
+                )
+        order.save()
+        return CreateOrder(order=order, success='Order created successfully')
 
 
 
 class Mutation(graphene.ObjectType):
     create_customer = CreateCustomer.Field()
+    create_product = CreateProduct.Field()
+    create_order = CreateOrder.Field()
 
 
 

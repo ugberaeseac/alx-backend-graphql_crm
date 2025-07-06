@@ -1,5 +1,6 @@
 from django.db import models
 import uuid
+from decimal import Decimal
 
 # Create your models here
 
@@ -30,11 +31,17 @@ class Product(models.Model):
 class Order(models.Model):
     order_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, primary_key=True)
     customer_id = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='orders')
-    product_id = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='orders')
+    product_ids = models.JSONField(default=list, blank=True)
     order_date = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return 'Order - {self.order_id}'
+
+    @property
+    def total_amount(self):
+        products = Product.objects.filter(product_id__in=self.product_ids)
+        total = sum((Decimal(product.price) for product in products))
+        return total
 
 
     
