@@ -8,7 +8,7 @@ class Customer(models.Model):
     customer_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, primary_key=True)
     name = models.CharField(max_length=100, null=False, blank=False)
     email = models.EmailField(unique=True)
-    phone = models.CharField(max_length=15)
+    phone = models.CharField(max_length=15, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

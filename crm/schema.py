@@ -4,16 +4,22 @@ from .models import Customer, Product, Order
 from graphql import GraphQLError
 from decimal import Decimal
 
+
+
 class CustomerType(DjangoObjectType):
     class Meta:
         model = Customer
         fields = ('customer_id', 'name', 'email', 'phone')
 
 
+
+
 class ProductType(DjangoObjectType):
     class Meta:
         model = Product
         fields = ('product_id', 'name', 'price', 'stock')
+
+
 
 
 class OrderType(DjangoObjectType):
@@ -27,10 +33,20 @@ class OrderType(DjangoObjectType):
         return parent.total_amount
 
 
+
+
 class CustomerInputType(graphene.InputObjectType):
     name = graphene.String(required=True)
     email = graphene.String(required=True)
     phone = graphene.String()
+
+
+
+class ProductInputType(graphene.InputObjectType):
+    name = graphene.String(required=True)
+    price = graphene.Decimal(required=True)
+    stock = graphene.Int(required=True, default_value=0)
+
 
 
 
@@ -50,12 +66,13 @@ class Query(graphene.ObjectType):
 
 
 
+
 class CreateCustomer(graphene.Mutation):
     class Arguments:
         input = CustomerInputType(required=True)
     
     customer = graphene.Field(CustomerType)
-    success = graphene.String()
+    message = graphene.String()
 
     @classmethod
     def mutate(cls, root, info, input):
@@ -64,7 +81,7 @@ class CreateCustomer(graphene.Mutation):
         phone = input.phone
 
         if Customer.objects.filter(email=email).exists():
-            raise GraphQLError('The email is already been used by another customer')
+            raise GraphQLError(f'The email {email} is already been used by another customer')
 
         customer = Customer(
                 name = name,
@@ -72,29 +89,52 @@ class CreateCustomer(graphene.Mutation):
                 phone = phone
                 )
         customer.save()
-        return CreateCustomer(customer=customer, success='Customer created successfully')
+        return CreateCustomer(customer=customer, message='Customer created successfully')
 
 
 
 
-class BulkCreateCustomer():
-#    class Arguments:
-#        customer_list = graphene.List(graphene.dict(required=True)
-    pass
+class BulkCreateCustomer(graphene.Mutation):
+    class Arguments:
+        input = graphene.List(CustomerInputType, required=True)
+
+    customers = graphene.List(CustomerType)
+    message = graphene.String()
+
+    @classmethod
+    def mutate(cls, root, info, input):
+        customers = []
+        for obj in input:
+            name = obj.name
+            email = obj.email
+            phone = obj.phone
+            if Customer.objects.filter(email=email).exists():
+                raise GraphQLError(f'The email {email} is already been used by another customer')
+            customer = Customer(
+                    name = name,
+                    email = email,
+                    phone = phone
+                    )
+            customer.save()
+            customers.append(customer)
+        return BulkCreateCustomer(customers=customers, message='Customers created successfully')
+
 
 
 
 class CreateProduct(graphene.Mutation):
     class Arguments:
-        name = graphene.String(required=True)
-        price = graphene.Float(required=True)
-        stock = graphene.Int(required=True, default_value=0)
+        input = ProductInputType(required=True)
 
     product = graphene.Field(ProductType)
-    success = graphene.String()
+    message = graphene.String()
 
     @classmethod
-    def mutate(cls, root, info, name, price, stock):
+    def mutate(cls, root, info, input):
+        name = input.name
+        price = input.price
+        stock = input.stock
+
         if stock is not None and stock < 0:
             raise GraphQLError('The stock can not be a negative number')
 
@@ -103,11 +143,13 @@ class CreateProduct(graphene.Mutation):
 
         product = Product(
                 name = name,
-                price = Decimal(price),
+                price = price,
                 stock = stock
                 )
         product.save()
-        return CreateProduct(product=product, success='Product created successfully')
+        return CreateProduct(product=product, message='Product created successfully')
+
+
 
 
 class CreateOrder(graphene.Mutation):
@@ -140,14 +182,11 @@ class CreateOrder(graphene.Mutation):
 
 
 
+
 class Mutation(graphene.ObjectType):
     create_customer = CreateCustomer.Field()
+    bulk_create_customer = BulkCreateCustomer.Field()
     create_product = CreateProduct.Field()
     create_order = CreateOrder.Field()
-
-
-
-
-
 
 
