@@ -30,16 +30,16 @@ class Product(models.Model):
 
 class Order(models.Model):
     order_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, primary_key=True)
-    customer_id = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='orders')
-    product_ids = models.JSONField(default=list, blank=True)
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='orders')
+    products = models.ManyToManyField(Product, related_name='orders')
     order_date = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return 'Order - {self.order_id}'
+        return f'Order - {self.order_id}'
 
     @property
     def total_amount(self):
-        products = Product.objects.filter(product_id__in=self.product_ids)
+        products = self.products.all()
         total = sum((Decimal(product.price) for product in products))
         return total
 

@@ -27,7 +27,7 @@ class OrderType(DjangoObjectType):
 
     class Meta:
         model = Order
-        fields = ('order_id', 'customer_id', 'product_ids', 'total_amount')
+        fields = ('order_id', 'customer', 'products', 'total_amount')
 
     def resolve_total_amount(parent, info):
         return parent.total_amount
@@ -49,11 +49,21 @@ class ProductInputType(graphene.InputObjectType):
 
 
 
+class OrderInputType(graphene.InputObjectType):
+    customer_id = graphene.ID(required=True)
+    product_ids = graphene.List(graphene.ID, required=True)
+
+
+
 
 class Query(graphene.ObjectType):
     all_customers = graphene.List(CustomerType)
     all_products = graphene.List(ProductType)
     all_orders = graphene.List(OrderType)
+    customer_by_id = graphene.Field(CustomerType, customer_id=graphene.ID(required=True))
+    product_by_id = graphene.Field(ProductType, product_id=graphene.ID(required=True))
+    order_by_id = graphene.Field(OrderType, order_id=graphene.ID(required=True))
+
 
     def resolve_all_customers(root, info):
         return Customer.objects.all()
@@ -61,8 +71,29 @@ class Query(graphene.ObjectType):
     def resolve_all_products(root, info):
         return Product.objects.all()
 
-    def resolve_all_Orders(root, info):
+    def resolve_all_orders(root, info):
         return Order.objects.all()
+
+    def resolve_customer_by_id(root, info, customer_id):
+        customer = Customer.objects.get(customer_id=customer_id)
+        if not customer:
+            raise GraphQLError('Invalid customer ID')
+        return customer
+
+    def resolve_product_by_id(root, info, product_id):
+        product = Product.objects.get(product_id=product_id)
+        if not product_id:
+            raise GraphQLError('Invalid Product ID')
+        return product
+
+    def resolve_order_by_id(root, info, order_id):
+        order = Order.objects.get(order_id=order_id)
+        if not order:
+            raise GraphQLError('Invalid Order ID')
+        return order
+
+
+
 
 
 
@@ -103,6 +134,7 @@ class BulkCreateCustomer(graphene.Mutation):
 
     @classmethod
     def mutate(cls, root, info, input):
+        
         customers = []
         for obj in input:
             name = obj.name
@@ -131,6 +163,7 @@ class CreateProduct(graphene.Mutation):
 
     @classmethod
     def mutate(cls, root, info, input):
+        
         name = input.name
         price = input.price
         stock = input.stock
@@ -154,31 +187,36 @@ class CreateProduct(graphene.Mutation):
 
 class CreateOrder(graphene.Mutation):
     class Arguments:
-        customer_id = graphene.ID(required=True)
-        product_ids = graphene.List(graphene.ID, required=True)
+        input = OrderInputType(required=True)
 
     order = graphene.Field(OrderType)
-    success = graphene.String()
+    message = graphene.String()
 
     @classmethod
-    def mutate(cls, root, info, customer_id, product_ids):
+    def mutate(cls, root, info, input):
+        
+        customer_id = input.customer_id
+        product_ids = input.product_ids
+
         customer = Customer.objects.get(customer_id=customer_id)
         if not customer:
             raise GraphQLError('Invalid customer ID')
 
-        products = Product.objects.filter(product_id__in=products_ids)
+        products = Product.objects.filter(product_id__in=product_ids)
+        valid_ids = set()
         for product in products:
-            valid_ids = set(str(product.product_ids))
+            valid_ids.add(str(product.product_id))
 
         if set(product_ids) != valid_ids:
             raise GraphQLError('One or more product IDs are invalid')
 
-        order = Order(
-                customer_id = customer,
-                product_ids = list(product_ids)
-                )
+        order = Order(customer = customer)
         order.save()
-        return CreateOrder(order=order, success='Order created successfully')
+
+        order.products.set(products)
+        order.save()
+
+        return CreateOrder(order=order, message='Order created successfully')
 
 
 
