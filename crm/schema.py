@@ -57,6 +57,7 @@ class OrderInputType(graphene.InputObjectType):
 
 
 class Query(graphene.ObjectType):
+    hello = graphene.String(default_value='Hello GraphQL!')
     all_customers = graphene.List(CustomerType)
     all_products = graphene.List(ProductType)
     all_orders = graphene.List(OrderType)
